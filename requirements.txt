@@ -1,0 +1,10 @@
+# Dự án ưu tiên sử dụng thư viện chuẩn của Python 3:
+# - socket: kết nối mạng TCP socket
+# - threading / concurrent.futures: quét đa luồng đồng thời
+# - tkinter: giao diện người dùng đồ họa (GUI)
+# - csv: đọc/ghi báo cáo kết quả quét
+# - ipaddress: kiểm tra và xử lý định dạng địa chỉ IP
+#
+# Thư viện ngoài phục vụ kiểm thử và phát triển:
+pytest>=7.4.0
+
