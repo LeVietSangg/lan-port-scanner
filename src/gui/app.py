@@ -6,7 +6,14 @@ from tkinter import ttk, messagebox, filedialog
 from typing import List
 
 from src.config import COMMON_PORTS, DEFAULT_MAX_THREADS, DEFAULT_TIMEOUT, STATUS_OPEN, STATUS_CLOSED, STATUS_FILTERED
-from src.core.validator import resolve_host, parse_ports
+from src.core.validator import (
+    parse_ports,
+    resolve_host,
+    validate_target,
+    TYPE_LOOPBACK,
+    TYPE_PRIVATE_LAN,
+    TYPE_PUBLIC,
+)
 from src.core.scanner import PortScanner, ScanResult
 from src.core.analyzer import analyze_security
 from src.core.exporter import export_to_csv
@@ -57,14 +64,29 @@ class PortScannerApp:
         row1.pack(fill=tk.X, pady=4)
 
         ttk.Label(row1, text="Mục tiêu (IP / Host):", width=18).pack(side=tk.LEFT)
-        self.target_entry = ttk.Entry(row1, width=28)
+        self.target_entry = ttk.Entry(row1, width=24)
         self.target_entry.insert(0, "127.0.0.1")
-        self.target_entry.pack(side=tk.LEFT, padx=5)
+        self.target_entry.pack(side=tk.LEFT, padx=(5, 2))
+        self.target_entry.bind("<KeyRelease>", lambda event: self.check_ip_target(silent=True))
+
+        self.btn_check_ip = ttk.Button(row1, text="Kiểm tra IP", width=12, command=lambda: self.check_ip_target(silent=False))
+        self.btn_check_ip.pack(side=tk.LEFT, padx=3)
 
         ttk.Label(row1, text="Danh sách cổng:").pack(side=tk.LEFT, padx=(15, 5))
-        self.ports_entry = ttk.Entry(row1, width=35)
+        self.ports_entry = ttk.Entry(row1, width=32)
         self.ports_entry.insert(0, "21, 22, 80, 443, 3306, 3389, 8080")
         self.ports_entry.pack(side=tk.LEFT, padx=5)
+
+        # Hàng 1.5: Nhãn thông tin xác thực IP trực tiếp
+        row1_info = ttk.Frame(input_frame)
+        row1_info.pack(fill=tk.X, pady=(1, 4))
+        self.lbl_ip_feedback = ttk.Label(
+            row1_info,
+            text="● Mục tiêu: 127.0.0.1 (Loopback - Máy cục bộ kiểm thử an toàn)",
+            foreground="#008000",
+            font=("Arial", 8, "italic")
+        )
+        self.lbl_ip_feedback.pack(side=tk.LEFT, padx=(140, 5))
 
         # Hàng 2: Tùy chọn sẵn cổng & Tham số kết nối
         row2 = ttk.Frame(input_frame)
@@ -166,15 +188,64 @@ class PortScannerApp:
             self.ports_entry.delete(0, tk.END)
             self.ports_entry.insert(0, "1-1024")
 
+    def check_ip_target(self, silent: bool = False):
+        """Xác thực và cập nhật nhãn trạng thái của IP mục tiêu trên giao diện."""
+        target_input = self.target_entry.get().strip()
+        if not target_input:
+            self.lbl_ip_feedback.config(text="● Vui lòng nhập địa chỉ IP hoặc tên máy chủ.", foreground="#888888")
+            if not silent:
+                messagebox.showwarning("Nhắc nhở", "Vui lòng nhập địa chỉ IP hoặc tên máy chủ.")
+            return False, None
+
+        res = validate_target(target_input)
+        if res.is_valid:
+            if res.is_lan_or_local:
+                color = "#008000"
+                icon = "✅"
+            else:
+                color = "#cc6600"
+                icon = "⚠️"
+            display_text = f"{icon} {res.resolved_ip} ({res.ip_type})"
+            self.lbl_ip_feedback.config(text=display_text, foreground=color)
+            if not silent:
+                detail_msg = (
+                    f"Mục tiêu hợp lệ!\n\n"
+                    f"- Địa chỉ IP: {res.resolved_ip}\n"
+                    f"- Phân loại: {res.ip_type}\n"
+                    f"- Thuộc LAN/Local: {'Có' if res.is_lan_or_local else 'Không (Public Internet)'}\n"
+                )
+                if res.warning_message:
+                    detail_msg += f"\nLưu ý: {res.warning_message}"
+                messagebox.showinfo("Xác thực IP thành công", detail_msg)
+            return True, res
+        else:
+            self.lbl_ip_feedback.config(text=f"❌ {res.error_message}", foreground="#cc0000")
+            if not silent:
+                messagebox.showerror("Lỗi địa chỉ IP", res.error_message)
+            return False, None
+
     def start_scan(self):
         target_input = self.target_entry.get().strip()
         ports_input = self.ports_entry.get().strip()
 
-        # 1. Xác thực mục tiêu
-        ok, resolved_ip = resolve_host(target_input)
-        if not ok:
-            messagebox.showerror("Lỗi mục tiêu", resolved_ip)
+        # 1. Xác thực mục tiêu bằng validator ngày 04/11
+        is_ok, target_res = self.check_ip_target(silent=True)
+        if not is_ok or not target_res:
+            res = validate_target(target_input)
+            messagebox.showerror("Lỗi mục tiêu", res.error_message or "Địa chỉ mục tiêu không hợp lệ.")
             return
+
+        resolved_ip = target_res.resolved_ip
+
+        # Nếu là Public IP, hiển thị hộp thoại xác nhận an toàn
+        if not target_res.is_lan_or_local:
+            confirm = messagebox.askyesno(
+                "Cảnh báo quét IP công cộng",
+                f"{target_res.warning_message}\n\nBạn có chắc chắn rằng bạn có quyền kiểm thử mục tiêu này?",
+                icon=messagebox.WARNING
+            )
+            if not confirm:
+                return
 
         # 2. Phân tích danh sách cổng
         ports = parse_ports(ports_input)

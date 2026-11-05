@@ -11,35 +11,65 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from src.core.validator import resolve_host, parse_ports
+from src.core.validator import (
+    parse_ports,
+    prompt_user_for_ip,
+    resolve_host,
+    validate_target,
+)
 from src.core.scanner import PortScanner
 from src.core.analyzer import analyze_all_results
 from src.core.exporter import export_to_csv
 from src.config import DEFAULT_TIMEOUT, DEFAULT_MAX_THREADS
 
 
+def run_ip_validation_cli(target_input: str):
+    """Kiểm tra và in ra thông tin phân tích chi tiết của một địa chỉ IP hoặc tên miền."""
+    print("=" * 65)
+    print(" KẾT QUẢ KIỂM TRA ĐỊA CHỈ IP / TÊN MIỀN (NHIỆM VỤ NGÀY 04/11)")
+    print("=" * 65)
+    res = validate_target(target_input)
+    print(f"[*] Mục tiêu nhập   : {res.original_input}")
+    print(f"[*] Tính hợp lệ     : {'HỢP LỆ (VALID)' if res.is_valid else 'KHÔNG HỢP LỆ (INVALID)'}")
+    
+    if res.is_valid:
+        print(f"[*] Địa chỉ IP đích : {res.resolved_ip}")
+        print(f"[*] Phân loại phạm vi: {res.ip_type}")
+        print(f"[*] Mạng LAN/Local  : {'Đúng (An toàn cho kiểm thử LAN)' if res.is_lan_or_local else 'Không (Internet Public IP)'}")
+        if res.warning_message:
+            print(f"[!] Cảnh báo/Ghi chú: {res.warning_message}")
+    else:
+        print(f"[!] Nguyên nhân lỗi : {res.error_message}")
+    print("=" * 65)
+
+
 def run_cli_mode(target_input: str, ports_input: str, timeout: float, threads: int, export: bool):
     """Chạy chế độ quét dòng lệnh (CLI)."""
-    print("=" * 60)
+    print("=" * 65)
     print(" LAN PORT SCANNER & ANALYZER (CLI MODE)")
-    print("=" * 60)
+    print("=" * 65)
 
-    # 1. Phân giải host
-    ok, resolved_ip = resolve_host(target_input)
-    if not ok:
-        print(f"[!] Lỗi phân giải mục tiêu: {resolved_ip}")
+    # 1. Xác thực và phân loại mục tiêu
+    target_res = validate_target(target_input)
+    if not target_res.is_valid:
+        print(f"[!] Lỗi xác thực mục tiêu: {target_res.error_message}")
         sys.exit(1)
+
+    resolved_ip = target_res.resolved_ip
 
     # 2. Phân giải danh sách cổng
     ports = parse_ports(ports_input)
     if not ports:
-        print("[!] Không tìm thấy cổng hợp lệ nào trong danh sách.")
+        print("[!] Không tìm thấy cổng hợp lệ nào trong danh sách (1-65535).")
         sys.exit(1)
 
     print(f"[*] Mục tiêu: {resolved_ip} (từ '{target_input}')")
+    print(f"[*] Phân loại: {target_res.ip_type}")
+    if target_res.warning_message:
+        print(f"[*] Lưu ý: {target_res.warning_message}")
     print(f"[*] Tổng số cổng cần quét: {len(ports)}")
     print(f"[*] Cấu hình: Timeout = {timeout}s, Số luồng = {threads}")
-    print("=" * 60)
+    print("=" * 65)
 
     scanner = PortScanner(target=resolved_ip, ports=ports, timeout=timeout, max_threads=threads)
     raw_results = scanner.scan()
@@ -53,7 +83,7 @@ def run_cli_mode(target_input: str, ports_input: str, timeout: float, threads: i
 
     if export:
         file_path = export_to_csv(analyzed_results)
-        print("=" * 60)
+        print("=" * 65)
         print(f"[+] Báo cáo đã được lưu tại: {file_path}")
 
 
@@ -65,10 +95,16 @@ def main():
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Thời gian chờ kết nối (giây)")
     parser.add_argument("--threads", type=int, default=DEFAULT_MAX_THREADS, help="Số luồng quét đồng thời tối đa")
     parser.add_argument("--export", action="store_true", help="Tự động xuất báo cáo CSV sau khi quét")
+    parser.add_argument("--check-ip", type=str, help="Kiểm tra tính hợp lệ và phân loại của một địa chỉ IP / Hostname")
+    parser.add_argument("--interactive-ip", action="store_true", help="Chạy chế độ nhập IP tương tác với kiểm tra trực tiếp")
 
     args = parser.parse_args()
 
-    if args.cli:
+    if args.check_ip:
+        run_ip_validation_cli(args.check_ip)
+    elif args.interactive_ip:
+        prompt_user_for_ip()
+    elif args.cli:
         run_cli_mode(args.target, args.ports, args.timeout, args.threads, args.export)
     else:
         try:
