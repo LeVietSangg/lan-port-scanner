@@ -2,12 +2,15 @@
 
 from dataclasses import dataclass, field
 import errno
+import queue
 import socket
+import threading
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.config import DEFAULT_MAX_THREADS, DEFAULT_TIMEOUT, STATUS_CLOSED, STATUS_FILTERED, STATUS_OPEN
+from src.core.classifier import classify_status, PortClassification
 
 # Bản đồ giải mã chi tiết các mã lỗi Socket phổ biến (POSIX & Windows Winsock)
 SOCKET_ERROR_DESCRIPTIONS: Dict[int, str] = {
@@ -37,6 +40,7 @@ class ScanResult:
     risk_level: str = "Info"
     notes: str = ""
     recommendation: str = ""
+    classification: Optional[PortClassification] = None
 
 
 def grab_banner(target_ip: str, port: int, timeout: float = 0.5) -> str:
@@ -119,41 +123,37 @@ def scan_single_port(
     sock.settimeout(timeout)
 
     start_time = time.perf_counter()
+    exception_caught = None
     try:
         error_code = sock.connect_ex((target_ip, port))
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
-
-        if error_code == 0:
-            status = STATUS_OPEN
-            notes = SOCKET_ERROR_DESCRIPTIONS.get(0, "Kết nối TCP thành công")
-        elif error_code in (errno.ECONNREFUSED, 10061):
-            status = STATUS_CLOSED
-            notes = SOCKET_ERROR_DESCRIPTIONS.get(error_code, "Máy đích chủ động từ chối kết nối (RST)")
-        elif error_code in (errno.ETIMEDOUT, 10060):
-            status = STATUS_FILTERED
-            notes = SOCKET_ERROR_DESCRIPTIONS.get(error_code, "Hết thời gian chờ phản hồi (Timeout/Firewall)")
-        elif error_code in SOCKET_ERROR_DESCRIPTIONS:
-            status = STATUS_FILTERED
-            notes = SOCKET_ERROR_DESCRIPTIONS[error_code]
-        else:
-            status = STATUS_FILTERED
-            notes = f"Phản hồi mã lỗi socket hệ thống: {error_code}"
     except socket.timeout:
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
-        status = STATUS_FILTERED
-        notes = "Hết thời gian chờ (Socket Timeout)"
+        error_code = getattr(errno, "ETIMEDOUT", 10060)
     except Exception as e:
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
-        status = STATUS_FILTERED
-        notes = f"Lỗi socket kết nối: {str(e)}"
+        exception_caught = str(e)
     finally:
         try:
             sock.close()
         except Exception:
             pass
+
+    # Áp dụng bộ phân loại trạng thái chuyên biệt (Chức năng ngày 06/11)
+    classification = classify_status(
+        error_code=error_code,
+        elapsed_time=response_time_ms / 1000.0,
+        timeout=timeout
+    )
+    status = classification.status
+    notes = classification.reason
+
+    if exception_caught:
+        notes = f"Lỗi ngoại lệ socket: {exception_caught}"
+        classification.reason = notes
 
     # Nếu cổng mở và người dùng kích hoạt nhận diện banner
     if status == STATUS_OPEN and enable_banner:
@@ -168,7 +168,8 @@ def scan_single_port(
         response_time_ms=response_time_ms,
         error_code=error_code,
         banner=banner,
-        notes=notes
+        notes=notes,
+        classification=classification
     )
 
 
@@ -204,6 +205,79 @@ def scan_ports_sequential(
     return results
 
 
+def scan_ports_threaded_queue(
+    target_ip: str,
+    ports: List[int],
+    timeout: float = DEFAULT_TIMEOUT,
+    max_threads: int = DEFAULT_MAX_THREADS,
+    progress_callback: Optional[Callable[[ScanResult, int, int], None]] = None,
+    enable_banner: bool = False,
+    stop_event: Optional[threading.Event] = None
+) -> List[ScanResult]:
+    """Quét đồng thời bằng mô hình Threading kết hợp Queue (Producer - Consumer Pattern).
+
+    Args:
+        target_ip: Địa chỉ IP mục tiêu.
+        ports: Danh sách số hiệu cổng cần quét.
+        timeout: Thời gian chờ phản hồi cho từng cổng.
+        max_threads: Số lượng worker thread chạy đồng thời tối đa.
+        progress_callback: Hàm callback nhận (ScanResult, số cổng hoàn thành, tổng số).
+        enable_banner: Bật/tắt thu thập banner.
+        stop_event: Đối tượng threading.Event để nhận diện tín hiệu hủy quét.
+
+    Returns:
+        List[ScanResult]: Danh sách kết quả quét đã sắp xếp theo thứ tự cổng.
+    """
+    results: List[ScanResult] = []
+    total = len(ports)
+    completed_count = 0
+    lock = threading.Lock()
+    port_queue: queue.Queue = queue.Queue()
+
+    for p in ports:
+        port_queue.put(p)
+
+    def worker():
+        nonlocal completed_count
+        while not port_queue.empty():
+            if stop_event and stop_event.is_set():
+                break
+            try:
+                port = port_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            if stop_event and stop_event.is_set():
+                port_queue.task_done()
+                break
+
+            result = scan_single_port(target_ip, port, timeout=timeout, enable_banner=enable_banner)
+
+            with lock:
+                results.append(result)
+                completed_count += 1
+                current_completed = completed_count
+
+            if progress_callback:
+                progress_callback(result, current_completed, total)
+
+            port_queue.task_done()
+
+    threads: List[threading.Thread] = []
+    num_workers = min(max_threads, max(1, total))
+
+    for _ in range(num_workers):
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    results.sort(key=lambda r: r.port)
+    return results
+
+
 class PortScanner:
     """Bộ điều phối quét cổng hỗ trợ cả đơn luồng và đa luồng (ThreadPoolExecutor)."""
 
@@ -221,10 +295,14 @@ class PortScanner:
         self.max_threads = max_threads
         self.enable_banner = enable_banner
         self.is_running = False
+        self._stop_event = threading.Event()
+        self._lock = threading.Lock()
         self.results: List[ScanResult] = []
+        self.scan_duration_sec: float = 0.0
+        self.scan_rate: float = 0.0
 
     def scan(self, progress_callback: Optional[Callable[[ScanResult, int, int], None]] = None) -> List[ScanResult]:
-        """Bắt đầu quét danh sách cổng bằng đa luồng.
+        """Bắt đầu quét danh sách cổng bằng đa luồng ThreadPoolExecutor.
 
         Args:
             progress_callback: Hàm callback nhận (ScanResult, số cổng đã quét, tổng số cổng).
@@ -233,11 +311,14 @@ class PortScanner:
             List[ScanResult]: Danh sách kết quả quét.
         """
         self.is_running = True
+        self._stop_event.clear()
         self.results = []
         total = len(self.ports)
         completed = 0
 
-        # Nếu chỉ có 1 cổng hoặc số luồng là 1, dùng quét tuần tự
+        t_start = time.perf_counter()
+
+        # Nếu chỉ có 1 cổng hoặc cấu hình 1 luồng, dùng quét tuần tự
         if len(self.ports) == 1 or self.max_threads <= 1:
             self.results = scan_ports_sequential(
                 self.target,
@@ -246,10 +327,14 @@ class PortScanner:
                 progress_callback=progress_callback,
                 enable_banner=self.enable_banner
             )
+            t_end = time.perf_counter()
+            self.scan_duration_sec = round(t_end - t_start, 3)
+            self.scan_rate = round(len(self.results) / max(0.001, self.scan_duration_sec), 1)
             self.is_running = False
             return self.results
 
-        with ThreadPoolExecutor(max_workers=min(self.max_threads, max(1, total))) as executor:
+        worker_count = min(self.max_threads, max(1, total))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
             future_to_port = {
                 executor.submit(
                     scan_single_port,
@@ -262,14 +347,17 @@ class PortScanner:
             }
 
             for future in as_completed(future_to_port):
-                if not self.is_running:
+                if self._stop_event.is_set():
                     break
                 try:
                     result = future.result()
-                    self.results.append(result)
-                    completed += 1
+                    with self._lock:
+                        self.results.append(result)
+                        completed += 1
+                        current_comp = completed
+
                     if progress_callback:
-                        progress_callback(result, completed, total)
+                        progress_callback(result, current_comp, total)
                 except Exception as e:
                     port = future_to_port[future]
                     err_result = ScanResult(
@@ -278,10 +366,17 @@ class PortScanner:
                         status=STATUS_FILTERED,
                         notes=f"Lỗi thực thi luồng: {str(e)}"
                     )
-                    self.results.append(err_result)
-                    completed += 1
+                    with self._lock:
+                        self.results.append(err_result)
+                        completed += 1
+                        current_comp = completed
+
                     if progress_callback:
-                        progress_callback(err_result, completed, total)
+                        progress_callback(err_result, current_comp, total)
+
+        t_end = time.perf_counter()
+        self.scan_duration_sec = round(t_end - t_start, 3)
+        self.scan_rate = round(len(self.results) / max(0.001, self.scan_duration_sec), 1)
 
         # Sắp xếp kết quả theo thứ tự cổng
         self.results.sort(key=lambda r: r.port)
@@ -289,5 +384,48 @@ class PortScanner:
         return self.results
 
     def stop(self):
-        """Dừng tiến trình quét."""
+        """Dừng tiến trình quét ngay lập tức bằng threading.Event."""
         self.is_running = False
+        self._stop_event.set()
+
+
+def benchmark_scan(
+    target_ip: str,
+    ports: List[int],
+    thread_counts: Optional[List[int]] = None,
+    timeout: float = 0.5
+) -> List[Dict[str, Any]]:
+    """Đo đạc và đối chiếu hiệu năng quét giữa đơn luồng và các mức đa luồng khác nhau (Mốc 07/11).
+
+    Args:
+        target_ip: Địa chỉ IP mục tiêu.
+        ports: Danh sách cổng phục vụ đo đạc.
+        thread_counts: Danh sách số lượng luồng cần thử nghiệm (Mặc định: [1, 5, 20, 50]).
+        timeout: Thời gian timeout cho mỗi cổng.
+
+    Returns:
+        List[Dict[str, Any]]: Danh sách thống kê thời gian và tốc độ cho từng cấu hình luồng.
+    """
+    if thread_counts is None:
+        thread_counts = [1, 5, 20, 50]
+
+    benchmark_records = []
+    total_ports = len(ports)
+
+    for threads in thread_counts:
+        scanner = PortScanner(target=target_ip, ports=ports, timeout=timeout, max_threads=threads)
+        start_time = time.perf_counter()
+        results = scanner.scan()
+        duration = time.perf_counter() - start_time
+        rate = total_ports / max(0.001, duration)
+
+        benchmark_records.append({
+            "threads": threads,
+            "mode": "Đơn luồng (Sequential)" if threads == 1 else f"Đa luồng ({threads} threads)",
+            "total_ports": total_ports,
+            "duration_sec": round(duration, 3),
+            "rate_ports_per_sec": round(rate, 1),
+            "open_count": sum(1 for r in results if r.status == STATUS_OPEN)
+        })
+
+    return benchmark_records
