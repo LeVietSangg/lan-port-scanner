@@ -48,6 +48,8 @@ class TestExporter(unittest.TestCase):
             self.assertEqual(rows[0]["Cổng (Port)"], "80")
             self.assertEqual(rows[0]["Trạng thái"], "OPEN")
             self.assertEqual(rows[0]["Dịch vụ dự đoán"], "HTTP")
+            self.assertIn("Độ trễ phản hồi (ms)", rows[0])
+            self.assertIn("Mã lỗi Socket", rows[0])
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)

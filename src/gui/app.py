@@ -109,6 +109,10 @@ class PortScannerApp:
         self.threads_spin.set(str(DEFAULT_MAX_THREADS))
         self.threads_spin.pack(side=tk.LEFT, padx=5)
 
+        self.banner_var = tk.BooleanVar(value=False)
+        self.chk_banner = ttk.Checkbutton(row2, text="Lấy Banner", variable=self.banner_var)
+        self.chk_banner.pack(side=tk.LEFT, padx=(15, 5))
+
         # Nút điều khiển
         btn_frame = ttk.Frame(input_frame)
         btn_frame.pack(fill=tk.X, pady=(6, 0))
@@ -272,7 +276,13 @@ class PortScannerApp:
         self.progress_var.set(0)
         self.status_label.config(text=f"Đang quét mục tiêu {resolved_ip} ({len(ports)} cổng)...")
 
-        self.scanner = PortScanner(target=resolved_ip, ports=ports, timeout=timeout, max_threads=max_threads)
+        self.scanner = PortScanner(
+            target=resolved_ip,
+            ports=ports,
+            timeout=timeout,
+            max_threads=max_threads,
+            enable_banner=self.banner_var.get()
+        )
 
         # Chạy trong luồng riêng để không treo giao diện
         thread = threading.Thread(target=self._run_scan_thread, daemon=True)

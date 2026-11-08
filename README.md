@@ -80,21 +80,19 @@ python main.py
 
 ### 3.2. Chạy ở chế độ dòng lệnh (CLI)
 ```powershell
-# Kiểm tra tính hợp lệ và phân loại của một địa chỉ IP / Hostname (Chức năng 04/11):
+# 1. Kiểm tra tính hợp lệ và phân loại IP / Hostname (Chức năng 04/11):
 python main.py --check-ip 192.168.1.1
-python main.py --check-ip 8.8.8.8
-
-# Chạy chế độ nhập IP tương tác trực tiếp:
 python main.py --interactive-ip
 
-# Quét localhost các cổng mặc định:
-python main.py --cli
+# 2. Quét chi tiết một cổng TCP bằng Socket (Chức năng 05/11):
+python main.py -t 127.0.0.1 --single-port 80 --timeout 0.5
+python main.py -t 192.168.1.1 --single-port 22 --banner
 
-# Quét mục tiêu cụ thể với danh sách cổng và xuất báo cáo CSV:
-python main.py --cli -t 127.0.0.1 -p "80,443,3306,3389" --timeout 0.5 --export
+# 3. Quét tuần tự từng cổng (Sequential Socket Scan):
+python main.py --cli -t 127.0.0.1 -p "80,443,8080" --sequential --timeout 0.5
 
-# Quét một dải cổng:
-python main.py --cli -t 192.168.1.1 -p "1-1024" --threads 100
+# 4. Quét đa luồng và xuất báo cáo CSV:
+python main.py --cli -t 127.0.0.1 -p "21,22,80,443,3306,3389" --threads 50 --export
 ```
 
 ### 3.3. Chạy kiểm thử tự động (Unit Tests)
@@ -110,7 +108,7 @@ python -m unittest discover tests
 | :--- | :--- | :---: |
 | **03/11** | **Tạo project Python, chuẩn bị môi trường và cấu trúc thư mục.** | ✅ **Hoàn thành** |
 | **04/11** | **Viết chức năng nhập IP, kiểm tra IP hợp lệ.** | ✅ **Hoàn thành** |
-| 05/11 | Viết chức năng quét cổng TCP bằng Socket. | ⏳ Chờ thực hiện |
+| **05/11** | **Viết chức năng quét cổng TCP bằng Socket.** | ✅ **Hoàn thành** |
 | 06/11 | Phân loại OPEN, CLOSED, FILTERED/UNKNOWN. | ⏳ Chờ thực hiện |
 | 07/11 | Thêm quét đồng thời bằng Threading. | ⏳ Chờ thực hiện |
 | 08/11 | Nhận diện dịch vụ theo số hiệu cổng, cảnh báo cơ bản. | ⏳ Chờ thực hiện |
