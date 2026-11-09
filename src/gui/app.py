@@ -200,6 +200,19 @@ class PortScannerApp:
         self.tree.tag_configure(STATUS_OPEN, foreground="#007700")
         self.tree.tag_configure(STATUS_CLOSED, foreground="#888888")
         self.tree.tag_configure(STATUS_FILTERED, foreground="#b37400")
+        self.tree.tag_configure("Risk_Critical", foreground="#cc0000", font=("Arial", 9, "bold"))
+        self.tree.tag_configure("Risk_High", foreground="#b30000")
+
+        # 5. Khung thông tin chi tiết cổng & Khuyến nghị an toàn (Mốc 08/11)
+        detail_frame = ttk.LabelFrame(self.root, text="Chi tiết dịch vụ & Khuyến nghị an toàn (Mốc 08/11)", padding=8)
+        detail_frame.pack(fill=tk.X, padx=10, pady=(0, 6))
+
+        self.txt_recommendation = tk.Text(detail_frame, height=3, wrap=tk.WORD, font=("Arial", 9), relief=tk.SOLID, borderwidth=1)
+        self.txt_recommendation.pack(fill=tk.X)
+        self.txt_recommendation.insert(tk.END, "Chọn một dòng trong bảng kết quả để xem chi tiết nhận diện dịch vụ, rủi ro và khuyến nghị an toàn.")
+        self.txt_recommendation.config(state=tk.DISABLED)
+
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
     def _on_preset_change(self, event=None):
         choice = self.port_preset_var.get()
@@ -331,6 +344,10 @@ class PortScannerApp:
         self.scan_results.append(result)
         self._update_stats_display()
 
+        row_tags = (result.status,)
+        if result.status == STATUS_OPEN and result.risk_level in ("Critical", "High"):
+            row_tags = (f"Risk_{result.risk_level}", result.status)
+
         self.tree.insert(
             "",
             tk.END,
@@ -343,7 +360,7 @@ class PortScannerApp:
                 result.notes,
                 result.recommendation,
             ),
-            tags=(result.status,)
+            tags=row_tags
         )
 
     def _on_filter_changed(self, event=None):
@@ -363,6 +380,10 @@ class PortScannerApp:
 
         filtered = filter_results_by_status(self.scan_results, filter_key)
         for result in filtered:
+            row_tags = (result.status,)
+            if result.status == STATUS_OPEN and result.risk_level in ("Critical", "High"):
+                row_tags = (f"Risk_{result.risk_level}", result.status)
+
             self.tree.insert(
                 "",
                 tk.END,
@@ -375,8 +396,35 @@ class PortScannerApp:
                     result.notes,
                     result.recommendation,
                 ),
-                tags=(result.status,)
+                tags=row_tags
             )
+
+    def _on_tree_select(self, event=None):
+        """Hiển thị chi tiết thông tin và khuyến nghị khi người dùng chọn một dòng (Mốc 08/11)."""
+        selected = self.tree.selection()
+        if not selected:
+            return
+        item = self.tree.item(selected[0])
+        vals = item.get("values", [])
+        if not vals or len(vals) < 7:
+            return
+
+        port = vals[1]
+        status = vals[2]
+        service = vals[3]
+        risk = vals[4]
+        notes = vals[5]
+        recommendation = vals[6]
+
+        detail_text = (
+            f"📌 CỔNG {port} | Dịch vụ: {service} | Trạng thái: {status} | Mức rủi ro: {risk}\n"
+            f"🔍 Ghi chú: {notes}\n"
+            f"🛡️ Khuyến nghị an toàn: {recommendation}"
+        )
+        self.txt_recommendation.config(state=tk.NORMAL)
+        self.txt_recommendation.delete("1.0", tk.END)
+        self.txt_recommendation.insert(tk.END, detail_text)
+        self.txt_recommendation.config(state=tk.DISABLED)
 
     def _update_stats_display(self):
         """Cập nhật các số liệu thống kê phân loại trạng thái trên thanh công cụ."""

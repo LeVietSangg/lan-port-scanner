@@ -95,10 +95,14 @@ python main.py --cli -t 127.0.0.1 -p "80,443,8080" --sequential --timeout 0.5
 python main.py --cli -t 127.0.0.1 -p "1-1024" --filter-status OPEN
 python main.py --cli -t 192.168.1.1 -p "20-100" --filter-status FILTERED
 
-# 5. Quét đa luồng và xuất báo cáo CSV:
+# 5. Lọc hiển thị kết quả theo mức độ rủi ro (Chức năng 08/11):
+python main.py --cli -t 192.168.1.1 -p "1-1024" --filter-risk CRITICAL
+python main.py --cli -t 192.168.1.1 -p "1-1024" --filter-risk HIGH
+
+# 6. Quét đa luồng và xuất báo cáo CSV:
 python main.py --cli -t 127.0.0.1 -p "21,22,80,443,3306,3389" --threads 50 --export
 
-# 6. Đo đạc benchmark đối chiếu hiệu năng quét đa luồng (Chức năng 07/11):
+# 7. Đo đạc benchmark đối chiếu hiệu năng quét đa luồng (Chức năng 07/11):
 python main.py --benchmark -t 127.0.0.1 -p "1-100" --timeout 0.2
 ```
 
@@ -118,7 +122,7 @@ python -m unittest discover tests
 | **05/11** | **Viết chức năng quét cổng TCP bằng Socket.** | ✅ **Hoàn thành** |
 | **06/11** | **Phân loại OPEN, CLOSED, FILTERED/UNKNOWN.** | ✅ **Hoàn thành** |
 | **07/11** | **Thêm quét đồng thời bằng Threading.** | ✅ **Hoàn thành** |
-| 08/11 | Nhận diện dịch vụ theo số hiệu cổng, cảnh báo cơ bản. | ⏳ Chờ thực hiện |
+| **08/11** | **Nhận diện dịch vụ theo số hiệu cổng, cảnh báo cơ bản.** | ✅ **Hoàn thành** |
 | 09/11 | Làm giao diện Tkinter. | ⏳ Chờ thực hiện |
 | 10/11 | Hiển thị kết quả và xuất CSV. | ⏳ Chờ thực hiện |
 

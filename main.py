@@ -18,7 +18,12 @@ from src.core.validator import (
     validate_target,
 )
 from src.core.scanner import PortScanner, scan_single_port, scan_ports_sequential, benchmark_scan
-from src.core.analyzer import analyze_all_results, analyze_security
+from src.core.analyzer import (
+    analyze_all_results,
+    analyze_security,
+    get_security_posture_summary,
+    filter_results_by_risk,
+)
 from src.core.classifier import get_classification_stats, filter_results_by_status
 from src.core.exporter import export_to_csv
 from src.config import DEFAULT_TIMEOUT, DEFAULT_MAX_THREADS
@@ -103,7 +108,8 @@ def run_cli_mode(
     export: bool,
     sequential: bool = False,
     enable_banner: bool = False,
-    status_filter: str = "ALL"
+    status_filter: str = "ALL",
+    risk_filter: str = "ALL"
 ):
     """Chạy chế độ quét dòng lệnh (CLI)."""
     print("=" * 65)
@@ -132,7 +138,9 @@ def run_cli_mode(
     print(f"[*] Tổng số cổng cần quét: {len(ports)}")
     print(f"[*] Chế độ quét: {mode_str} | Timeout: {timeout}s | Banner: {'Bật' if enable_banner else 'Tắt'}")
     if status_filter.upper() != "ALL":
-        print(f"[*] Bộ lọc hiển thị: Chỉ hiển thị cổng '{status_filter.upper()}'")
+        print(f"[*] Bộ lọc trạng thái: Chỉ hiển thị cổng '{status_filter.upper()}'")
+    if risk_filter.upper() != "ALL":
+        print(f"[*] Bộ lọc mức rủi ro: Chỉ hiển thị mức '{risk_filter.upper()}'")
     print("=" * 65)
 
     scanner = PortScanner(
@@ -148,15 +156,20 @@ def run_cli_mode(
     # Thống kê phân loại trạng thái cổng (Chức năng ngày 06/11)
     stats = get_classification_stats(analyzed_results)
 
-    # Áp dụng bộ lọc trạng thái nếu có yêu cầu
-    displayed_results = filter_results_by_status(analyzed_results, status_filter)
+    # Báo cáo đánh giá an toàn & nhận diện dịch vụ (Chức năng ngày 08/11)
+    sec_summary = get_security_posture_summary(analyzed_results)
 
-    print(f"{'CỔNG':<8} | {'TRẠNG THÁI':<16} | {'ĐỘ TRỄ':<9} | {'DỊCH VỤ':<12} | {'RỦI RO':<8} | {'KHUYẾN NGHỊ'}")
-    print("-" * 85)
+    # Áp dụng bộ lọc trạng thái và rủi ro nếu có yêu cầu
+    displayed_results = filter_results_by_status(analyzed_results, status_filter)
+    if risk_filter.upper() != "ALL":
+        displayed_results = filter_results_by_risk(displayed_results, risk_filter)
+
+    print(f"{'CỔNG':<8} | {'TRẠNG THÁI':<16} | {'ĐỘ TRỄ':<9} | {'DỊCH VỤ':<18} | {'RỦI RO':<10} | {'KHUYẾN NGHỊ'}")
+    print("-" * 92)
     for r in displayed_results:
         rec_summary = (r.recommendation[:25] + "...") if len(r.recommendation) > 25 else r.recommendation
         rtt_str = f"{r.response_time_ms}ms"
-        print(f"{r.port:<8} | {r.status:<16} | {r.rtt_str if hasattr(r, 'rtt_str') else rtt_str:<9} | {r.service:<12} | {r.risk_level:<8} | {rec_summary}")
+        print(f"{r.port:<8} | {r.status:<16} | {r.rtt_str if hasattr(r, 'rtt_str') else rtt_str:<9} | {r.service:<18} | {r.risk_level:<10} | {rec_summary}")
 
     print("=" * 65)
     print(" BẢNG TỔNG KẾT PHÂN LOẠI & HIỆU NĂNG LUỒNG (MỐC 07/11)")
@@ -169,6 +182,35 @@ def run_cli_mode(
     print(f"[*] BỊ LỌC (FILTERED/UNK)  : {stats['filtered_count']:<3} ({stats['filtered_percent']}%)")
     firewall_note = "Có dấu hiệu Tường lửa (Firewall) lọc/hủy gói tin" if stats['firewall_detected'] else "Không phát hiện dấu hiệu tường lửa can thiệp"
     print(f"[*] Nhận định an ninh mạng : {firewall_note}")
+
+    if sec_summary["total_open"] > 0:
+        print("=" * 65)
+        print(" BÁO CÁO ĐÁNH GIÁ AN TOÀN & CẢNH BÁO DỊCH VỤ (MỐC 08/11)")
+        print("=" * 65)
+        print(f"[*] Mức độ rủi ro tổng thể : {sec_summary['posture_rating']}")
+        print(f"[*] Nhận định chuyên môn   : {sec_summary['posture_summary']}")
+        print(f"[*] Phân bố mức độ rủi ro  :")
+        print(f"    - Nghiêm trọng (Critical) : {sec_summary['critical_count']}")
+        print(f"    - Cao (High)              : {sec_summary['high_count']}")
+        print(f"    - Trung bình (Medium)     : {sec_summary['medium_count']}")
+        print(f"    - Thấp (Low)              : {sec_summary['low_count']}")
+        print(f"    - Thông tin (Info)        : {sec_summary['info_count']}")
+
+        if sec_summary["cleartext_ports"]:
+            print(f"[!] Dịch vụ truyền văn bản rõ (Cleartext):")
+            for cp in sec_summary["cleartext_ports"]:
+                print(f"    • {cp}")
+
+        if sec_summary["database_ports"]:
+            print(f"[!] Dịch vụ Cơ sở dữ liệu đang mở cổng:")
+            for dp in sec_summary["database_ports"]:
+                print(f"    • {dp}")
+
+        if sec_summary["priority_recommendations"]:
+            print(f"\n[*] KHUYẾN NGHỊ AN NINH ƯU TIÊN:")
+            for idx, rec in enumerate(sec_summary["priority_recommendations"], start=1):
+                print(f"    {idx}. [{rec['risk_level'].upper()}] Cổng {rec['port']} ({rec['service']}):")
+                print(f"       -> {rec['recommendation']}")
 
     if export:
         file_path = export_to_csv(analyzed_results)
@@ -185,6 +227,7 @@ def main():
     parser.add_argument("--sequential", action="store_true", help="Sử dụng quét tuần tự đơn luồng (Socket Sequential Scan)")
     parser.add_argument("--banner", action="store_true", help="Bật thu thập biểu ngữ dịch vụ (Banner Grabbing)")
     parser.add_argument("--filter-status", type=str, default="ALL", choices=["ALL", "OPEN", "CLOSED", "FILTERED"], help="Lọc kết quả hiển thị theo trạng thái cổng (Mốc 06/11)")
+    parser.add_argument("--filter-risk", type=str, default="ALL", choices=["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"], help="Lọc kết quả hiển thị theo mức độ rủi ro (Mốc 08/11)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Thời gian chờ kết nối (giây)")
     parser.add_argument("--threads", type=int, default=DEFAULT_MAX_THREADS, help="Số luồng quét đồng thời tối đa")
     parser.add_argument("--benchmark", action="store_true", help="Chạy đo đạc đối chiếu hiệu năng quét qua các mức luồng (Mốc 07/11)")
@@ -211,7 +254,8 @@ def main():
             args.export,
             sequential=args.sequential,
             enable_banner=args.banner,
-            status_filter=args.filter_status
+            status_filter=args.filter_status,
+            risk_filter=args.filter_risk
         )
     else:
         try:
@@ -228,7 +272,8 @@ def main():
                 args.export,
                 sequential=args.sequential,
                 enable_banner=args.banner,
-                status_filter=args.filter_status
+                status_filter=args.filter_status,
+                risk_filter=args.filter_risk
             )
 
 
