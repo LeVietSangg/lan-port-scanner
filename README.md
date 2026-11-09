@@ -73,10 +73,17 @@ pip install -r requirements.txt
 
 ## 3. Hướng dẫn sử dụng
 
-### 3.1. Chạy giao diện đồ họa (GUI Tkinter)
+### 3.1. Chạy giao diện đồ họa (GUI Tkinter - Mốc 09/11)
 ```powershell
 python main.py
 ```
+**Tính năng giao diện đồ họa:**
+- **Thanh menu đầy đủ:** Quản lý tệp, công cụ cấu hình nhanh, hướng dẫn và giới thiệu đề tài.
+- **Hệ thống Tab:**
+  - Tab 1: **Bảng kết quả quét** với bộ lọc trạng thái và rủi ro, phân loại màu sắc, hiển thị độ trễ RTT, kèm khung chi tiết khuyến nghị an toàn khi chọn từng dòng.
+  - Tab 2: **Báo cáo an ninh mạng** đánh giá thế trận an ninh tổng thể (Security Posture Rating), cảnh báo dịch vụ truyền rõ (Cleartext), cơ sở dữ liệu mở, danh sách khuyến nghị an ninh ưu tiên.
+  - Tab 3: **Nhật ký hoạt động (Live Logs)** ghi lại chi tiết các sự kiện socket theo thời gian thực.
+- **Phím tắt:** `F5` (Quét mới), `Esc` (Dừng quét), `Ctrl+S` (Xuất CSV), `Ctrl+L` (Xóa bảng), `Ctrl+Q` (Thoát).
 
 ### 3.2. Chạy ở chế độ dòng lệnh (CLI)
 ```powershell
@@ -123,8 +130,8 @@ python -m unittest discover tests
 | **06/11** | **Phân loại OPEN, CLOSED, FILTERED/UNKNOWN.** | ✅ **Hoàn thành** |
 | **07/11** | **Thêm quét đồng thời bằng Threading.** | ✅ **Hoàn thành** |
 | **08/11** | **Nhận diện dịch vụ theo số hiệu cổng, cảnh báo cơ bản.** | ✅ **Hoàn thành** |
-| 09/11 | Làm giao diện Tkinter. | ⏳ Chờ thực hiện |
-| 10/11 | Hiển thị kết quả và xuất CSV. | ⏳ Chờ thực hiện |
+| **09/11** | **Làm giao diện Tkinter.** | ✅ **Hoàn thành** |
+| **10/11** | **Hiển thị kết quả và xuất CSV.** | ✅ **Hoàn thành** |
 
 ---
 

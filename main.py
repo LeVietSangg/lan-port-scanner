@@ -25,8 +25,30 @@ from src.core.analyzer import (
     filter_results_by_risk,
 )
 from src.core.classifier import get_classification_stats, filter_results_by_status
-from src.core.exporter import export_to_csv
+from src.core.exporter import export_to_csv, export_to_txt, generate_console_report
 from src.config import DEFAULT_TIMEOUT, DEFAULT_MAX_THREADS
+
+
+def run_ip_validation_cli(target_input: str):
+    """Kiểm tra tính hợp lệ và phân loại một địa chỉ IP / Hostname (Chức năng 04/11)."""
+    print("=" * 65)
+    print(" KIỂM TRA & PHÂN LOẠI ĐỊA CHỈ IP / HOSTNAME")
+    print("=" * 65)
+
+    result = validate_target(target_input)
+    print(f"[*] Đầu vào gốc      : {result.original_input}")
+    print(f"[*] Hợp lệ           : {'Có' if result.is_valid else 'Không'}")
+
+    if result.is_valid:
+        print(f"[+] Địa chỉ IP       : {result.resolved_ip}")
+        print(f"[+] Phân loại mạng   : {result.ip_type}")
+        print(f"[+] Mạng LAN/Local   : {'Đúng' if result.is_lan_or_local else 'Không (Public Internet)'}")
+        if result.warning_message:
+            print(f"[!] Cảnh báo         : {result.warning_message}")
+    else:
+        print(f"[!] Lỗi              : {result.error_message}")
+
+    print("=" * 65)
 
 
 def run_single_port_scan_cli(target_input: str, port: int, timeout: float, enable_banner: bool):
@@ -213,9 +235,21 @@ def run_cli_mode(
                 print(f"       -> {rec['recommendation']}")
 
     if export:
-        file_path = export_to_csv(analyzed_results)
+        csv_path = export_to_csv(
+            analyzed_results,
+            scan_duration_sec=scanner.scan_duration_sec,
+            threads_used=scanner.max_threads,
+        )
         print("=" * 65)
-        print(f"[+] Báo cáo đã được lưu tại: {file_path}")
+        print(f"[+] Báo cáo CSV đã được lưu tại: {csv_path}")
+
+        txt_path = export_to_txt(
+            analyzed_results,
+            scan_duration_sec=scanner.scan_duration_sec,
+            threads_used=scanner.max_threads,
+            security_summary=sec_summary,
+        )
+        print(f"[+] Báo cáo TXT đã được lưu tại: {txt_path}")
 
 
 def main():
