@@ -127,12 +127,46 @@ class TestPortScannerAppGUI(unittest.TestCase):
         items = self.app.tree.get_children()
         self.assertEqual(len(items), 2)
 
+    def test_sort_treeview_column(self):
+        """Kiểm tra chức năng sắp xếp cột bảng Treeview."""
+        mock1 = ScanResult(target_ip="127.0.0.1", port=443, status=STATUS_OPEN, response_time_ms=5.0)
+        mock2 = ScanResult(target_ip="127.0.0.1", port=80, status=STATUS_OPEN, response_time_ms=15.0)
+        self.app._update_row_and_progress(mock1, 1, 2)
+        self.app._update_row_and_progress(mock2, 2, 2)
+
+        # Sắp xếp theo cổng tăng dần
+        self.app._sort_treeview_column("port", reverse=False)
+        items = self.app.tree.get_children()
+        first_port = self.app.tree.item(items[0])["values"][1]
+        self.assertEqual(int(first_port), 80)
+
+        # Sắp xếp theo cổng giảm dần
+        self.app._sort_treeview_column("port", reverse=True)
+        items = self.app.tree.get_children()
+        first_port = self.app.tree.item(items[0])["values"][1]
+        self.assertEqual(int(first_port), 443)
+
     def test_clear_results(self):
         """Kiểm tra chức năng xóa bảng kết quả."""
         mock_res = ScanResult(target_ip="127.0.0.1", port=80, status=STATUS_OPEN)
         self.app._update_row_and_progress(mock_res, 1, 1)
         self.assertEqual(len(self.app.tree.get_children()), 1)
 
+        self.app.clear_results()
+        self.assertEqual(len(self.app.tree.get_children()), 0)
+        self.assertEqual(len(self.app.scan_results), 0)
+
+    def test_stop_scan_and_clear_results(self):
+        """Kiểm tra dừng quét và xóa kết quả mượt mà."""
+        self.app.is_scanning = True
+        mock_res = ScanResult(target_ip="127.0.0.1", port=80, status=STATUS_OPEN)
+        self.app._update_row_and_progress(mock_res, 1, 1)
+
+        # Dừng quét
+        self.app.stop_scan()
+        self.assertFalse(self.app.is_scanning)
+
+        # Xóa kết quả sau khi dừng
         self.app.clear_results()
         self.assertEqual(len(self.app.tree.get_children()), 0)
         self.assertEqual(len(self.app.scan_results), 0)

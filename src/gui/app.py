@@ -1,4 +1,4 @@
-"""Giao diện đồ họa người dùng (GUI) hoàn chỉnh cho ứng dụng LAN Port Scanner bằng Tkinter (Mốc 09/11)."""
+"""Giao diện đồ họa người dùng (GUI) hoàn chỉnh cho ứng dụng LAN Port Scanner bằng Tkinter (Mốc 09/11 - Bản nâng cấp giao diện hiện đại)."""
 
 from datetime import datetime
 import threading
@@ -45,8 +45,8 @@ class PortScannerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("LAN Port Scanner & Security Analyzer - Công cụ Quét & Phân tích An toàn Cổng Mạng")
-        self.root.geometry("1040x720")
-        self.root.minsize(860, 600)
+        self.root.geometry("1280x820")
+        self.root.minsize(1080, 700)
 
         self.scanner: Optional[PortScanner] = None
         self.scan_results: List[ScanResult] = []
@@ -59,15 +59,106 @@ class PortScannerApp:
         self._bind_shortcuts()
 
     def _setup_style(self):
-        """Khởi tạo cấu hình theme và màu sắc bảng kết quả."""
+        """Thiết lập giao diện phẳng, hiện đại và đồng bộ theo phong cách Modern Dashboard."""
         self.style = ttk.Style(self.root)
-        available_themes = self.style.theme_names()
-        if "clam" in available_themes:
+        if "clam" in self.style.theme_names():
             self.style.theme_use("clam")
 
-        self.style.configure("Treeview.Heading", font=("Arial", 9, "bold"))
-        self.style.configure("Treeview", rowheight=24, font=("Arial", 9))
-        self.style.configure("Bold.TLabel", font=("Arial", 9, "bold"))
+        # Bảng màu chuẩn hiện đại (Tailwind / Modern Flat Palette)
+        self.colors = {
+            "window": "#F3F6FB",
+            "surface": "#FFFFFF",
+            "surface_alt": "#F8FAFD",
+            "border": "#DCE3ED",
+            "text": "#1F2937",
+            "muted": "#64748B",
+            "primary": "#2563EB",
+            "primary_hover": "#1D4ED8",
+            "success": "#15803D",
+            "warning": "#B45309",
+            "danger": "#B91C1C",
+            "header": "#EAF0F8",
+        }
+        self.root.configure(bg=self.colors["window"])
+
+        self.style.configure("TFrame", background=self.colors["window"])
+        self.style.configure("Surface.TFrame", background=self.colors["surface"])
+        self.style.configure("TLabel", background=self.colors["window"], foreground=self.colors["text"], font=("Segoe UI", 9))
+        self.style.configure("Muted.TLabel", foreground=self.colors["muted"], font=("Segoe UI", 9))
+        self.style.configure("Bold.TLabel", foreground=self.colors["text"], font=("Segoe UI", 9, "bold"))
+        self.style.configure("Title.TLabel", foreground=self.colors["text"], font=("Segoe UI", 15, "bold"))
+        self.style.configure("Subtitle.TLabel", foreground=self.colors["muted"], font=("Segoe UI", 9))
+
+        self.style.configure(
+            "TLabelframe", background=self.colors["surface"], bordercolor=self.colors["border"],
+            relief="solid", borderwidth=1
+        )
+        self.style.configure(
+            "TLabelframe.Label", background=self.colors["window"], foreground=self.colors["text"],
+            font=("Segoe UI", 9, "bold")
+        )
+        self.style.configure(
+            "TEntry", fieldbackground=self.colors["surface"], foreground=self.colors["text"],
+            bordercolor=self.colors["border"], padding=6
+        )
+        self.style.configure(
+            "TSpinbox", fieldbackground=self.colors["surface"], foreground=self.colors["text"],
+            bordercolor=self.colors["border"], padding=4
+        )
+        self.style.configure(
+            "TCombobox", fieldbackground=self.colors["surface"], foreground=self.colors["text"],
+            bordercolor=self.colors["border"], padding=5
+        )
+        self.style.map("TCombobox", fieldbackground=[("readonly", self.colors["surface"])])
+
+        self.style.configure(
+            "TButton", font=("Segoe UI", 9, "bold"), padding=(12, 7),
+            background=self.colors["surface"], foreground=self.colors["text"],
+            bordercolor=self.colors["border"]
+        )
+        self.style.map(
+            "TButton",
+            background=[("active", "#E8EEF7"), ("disabled", "#E5E7EB")],
+            foreground=[("disabled", "#9CA3AF")]
+        )
+        self.style.configure(
+            "Primary.TButton", background=self.colors["primary"], foreground="#FFFFFF",
+            bordercolor=self.colors["primary"]
+        )
+        self.style.map(
+            "Primary.TButton",
+            background=[("active", self.colors["primary_hover"]), ("disabled", "#A5B4FC")],
+            foreground=[("disabled", "#F8FAFC")]
+        )
+
+        self.style.configure("TNotebook", background=self.colors["window"], borderwidth=0, tabmargins=(2, 4, 2, 0))
+        self.style.configure(
+            "TNotebook.Tab", background="#E8EDF5", foreground=self.colors["muted"],
+            padding=(16, 9), font=("Segoe UI", 9, "bold"), borderwidth=0
+        )
+        self.style.map(
+            "TNotebook.Tab",
+            background=[("selected", self.colors["surface"])],
+            foreground=[("selected", self.colors["primary"])]
+        )
+
+        self.style.configure(
+            "Treeview", background=self.colors["surface"], fieldbackground=self.colors["surface"],
+            foreground=self.colors["text"], rowheight=32, font=("Segoe UI", 9), borderwidth=0
+        )
+        self.style.configure(
+            "Treeview.Heading", background=self.colors["header"], foreground=self.colors["text"],
+            font=("Segoe UI", 9, "bold"), padding=(8, 9), relief="flat"
+        )
+        self.style.map(
+            "Treeview",
+            background=[("selected", "#DBEAFE")],
+            foreground=[("selected", self.colors["text"])]
+        )
+        self.style.configure(
+            "Horizontal.TProgressbar", troughcolor="#E2E8F0", background=self.colors["primary"],
+            bordercolor="#E2E8F0", lightcolor=self.colors["primary"], darkcolor=self.colors["primary"]
+        )
 
     def _build_menu(self):
         """Xây dựng thanh thực đơn cấp cao (Menu Bar)."""
@@ -78,7 +169,7 @@ class PortScannerApp:
         file_menu.add_command(label="Bắt đầu quét mới (F5)", command=self.start_scan)
         file_menu.add_command(label="Dừng quét (Esc)", command=self.stop_scan)
         file_menu.add_separator()
-        file_menu.add_command(label="Xuất báo cáo CSV (Ctrl+S)", command=self.export_report)
+        file_menu.add_command(label="Xuất báo cáo CSV / TXT (Ctrl+S)", command=self.export_report)
         file_menu.add_separator()
         file_menu.add_command(label="Thoát (Ctrl+Q)", command=self.root.quit)
         menu_bar.add_cascade(label="Tệp (File)", menu=file_menu)
@@ -114,19 +205,19 @@ class PortScannerApp:
     def _build_ui(self):
         """Xây dựng bố cục giao diện chính."""
         # 1. Khung cảnh báo / Điều khoản an toàn
-        disclaimer_frame = ttk.LabelFrame(self.root, text="Lưu ý an toàn & Pháp lý", padding=6)
-        disclaimer_frame.pack(fill=tk.X, padx=10, pady=(4, 2))
+        disclaimer_frame = ttk.LabelFrame(self.root, text="Lưu ý an toàn & Pháp lý", padding=8)
+        disclaimer_frame.pack(fill=tk.X, padx=12, pady=(6, 3))
 
         disclaimer_text = (
             "⚠️ CHÚ Ý AN TOÀN: Ứng dụng phục vụ học tập và quản trị mạng nội bộ. "
             "Chỉ quét thiết bị localhost (127.0.0.1), máy ảo lab hoặc hệ thống được cho phép bằng văn bản. "
             "Nghiêm cấm thực hiện dò quét trái phép trên mạng Internet."
         )
-        ttk.Label(disclaimer_frame, text=disclaimer_text, foreground="#b35900", wraplength=1000).pack(anchor=tk.W)
+        ttk.Label(disclaimer_frame, text=disclaimer_text, foreground="#B45309", wraplength=1200).pack(anchor=tk.W)
 
         # 2. Khung cấu hình mục tiêu và tham số quét
-        input_frame = ttk.LabelFrame(self.root, text="Cấu hình quét mục tiêu", padding=8)
-        input_frame.pack(fill=tk.X, padx=10, pady=4)
+        input_frame = ttk.LabelFrame(self.root, text="Cấu hình quét mục tiêu", padding=10)
+        input_frame.pack(fill=tk.X, padx=12, pady=4)
 
         # Hàng 1: Mục tiêu IP và Cổng
         row1 = ttk.Frame(input_frame)
@@ -135,28 +226,28 @@ class PortScannerApp:
         ttk.Label(row1, text="Mục tiêu (IP / Host):", width=18).pack(side=tk.LEFT)
         self.target_entry = ttk.Entry(row1, width=22)
         self.target_entry.insert(0, "127.0.0.1")
-        self.target_entry.pack(side=tk.LEFT, padx=(5, 2))
+        self.target_entry.pack(side=tk.LEFT, padx=(5, 3))
         self.target_entry.bind("<KeyRelease>", lambda event: self.check_ip_target(silent=True))
         self.target_entry.bind("<FocusOut>", lambda event: self.check_ip_target(silent=True))
 
-        self.btn_check_ip = ttk.Button(row1, text="Kiểm tra IP", width=11, command=lambda: self.check_ip_target(silent=False))
+        self.btn_check_ip = ttk.Button(row1, text="Kiểm tra IP", width=12, command=lambda: self.check_ip_target(silent=False))
         self.btn_check_ip.pack(side=tk.LEFT, padx=3)
 
-        ttk.Label(row1, text="Danh sách cổng:").pack(side=tk.LEFT, padx=(15, 5))
-        self.ports_entry = ttk.Entry(row1, width=32)
+        ttk.Label(row1, text="Danh sách cổng:").pack(side=tk.LEFT, padx=(18, 5))
+        self.ports_entry = ttk.Entry(row1, width=38)
         self.ports_entry.insert(0, "21, 22, 23, 80, 443, 445, 3306, 3389, 8080")
         self.ports_entry.pack(side=tk.LEFT, padx=5)
 
         # Hàng 1.5: Nhãn trạng thái xác thực IP thời gian thực
         row1_info = ttk.Frame(input_frame)
-        row1_info.pack(fill=tk.X, pady=(1, 3))
+        row1_info.pack(fill=tk.X, pady=(2, 4))
         self.lbl_ip_feedback = ttk.Label(
             row1_info,
             text="● Mục tiêu: 127.0.0.1 (Loopback - Máy cục bộ kiểm thử an toàn)",
-            foreground="#008000",
-            font=("Arial", 8, "italic")
+            foreground="#15803D",
+            font=("Segoe UI", 9, "italic")
         )
-        self.lbl_ip_feedback.pack(side=tk.LEFT, padx=(140, 5))
+        self.lbl_ip_feedback.pack(side=tk.LEFT, padx=(145, 5))
 
         # Hàng 2: Mẫu cổng nhanh, Timeout, Số luồng, Banner Grabbing
         row2 = ttk.Frame(input_frame)
@@ -169,87 +260,87 @@ class PortScannerApp:
         preset_menu.pack(side=tk.LEFT, padx=5)
         preset_menu.bind("<<ComboboxSelected>>", self._on_preset_change)
 
-        ttk.Label(row2, text="Timeout (s):").pack(side=tk.LEFT, padx=(10, 4))
-        self.timeout_spin = ttk.Spinbox(row2, from_=0.1, to=10.0, increment=0.2, width=5)
+        ttk.Label(row2, text="Timeout (s):").pack(side=tk.LEFT, padx=(12, 4))
+        self.timeout_spin = ttk.Spinbox(row2, from_=0.1, to=10.0, increment=0.2, width=6)
         self.timeout_spin.set(str(DEFAULT_TIMEOUT))
         self.timeout_spin.pack(side=tk.LEFT, padx=4)
 
-        ttk.Label(row2, text="Số luồng:").pack(side=tk.LEFT, padx=(10, 4))
-        self.threads_spin = ttk.Spinbox(row2, from_=1, to=200, increment=5, width=5)
+        ttk.Label(row2, text="Số luồng:").pack(side=tk.LEFT, padx=(12, 4))
+        self.threads_spin = ttk.Spinbox(row2, from_=1, to=200, increment=5, width=6)
         self.threads_spin.set(str(DEFAULT_MAX_THREADS))
         self.threads_spin.pack(side=tk.LEFT, padx=4)
 
         self.banner_var = tk.BooleanVar(value=False)
-        self.chk_banner = ttk.Checkbutton(row2, text="Lấy Banner", variable=self.banner_var)
-        self.chk_banner.pack(side=tk.LEFT, padx=(12, 5))
+        self.chk_banner = ttk.Checkbutton(row2, text="Lấy Banner dịch vụ", variable=self.banner_var)
+        self.chk_banner.pack(side=tk.LEFT, padx=(16, 5))
 
         # Hàng 3: Các nút điều khiển thao tác
         btn_frame = ttk.Frame(input_frame)
-        btn_frame.pack(fill=tk.X, pady=(4, 0))
+        btn_frame.pack(fill=tk.X, pady=(6, 0))
 
-        self.btn_scan = ttk.Button(btn_frame, text="▶ Bắt đầu quét (F5)", command=self.start_scan)
-        self.btn_scan.pack(side=tk.LEFT, padx=4)
+        self.btn_scan = ttk.Button(btn_frame, text="▶  Bắt đầu quét  |  F5", style="Primary.TButton", command=self.start_scan)
+        self.btn_scan.pack(side=tk.LEFT, padx=(0, 6))
 
-        self.btn_stop = ttk.Button(btn_frame, text="⏹ Dừng quét (Esc)", command=self.stop_scan, state=tk.DISABLED)
+        self.btn_stop = ttk.Button(btn_frame, text="⏹  Dừng quét  |  Esc", command=self.stop_scan, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT, padx=4)
 
-        self.btn_clear = ttk.Button(btn_frame, text="🗑 Xóa kết quả", command=self.clear_results)
+        self.btn_clear = ttk.Button(btn_frame, text="🗑  Xóa kết quả  |  Ctrl+L", command=self.clear_results)
         self.btn_clear.pack(side=tk.LEFT, padx=4)
 
-        self.btn_export = ttk.Button(btn_frame, text="💾 Xuất báo cáo CSV", command=self.export_report, state=tk.DISABLED)
+        self.btn_export = ttk.Button(btn_frame, text="💾  Xuất báo cáo  |  Ctrl+S", command=self.export_report, state=tk.DISABLED)
         self.btn_export.pack(side=tk.RIGHT, padx=4)
 
         # 3. Thanh tiến trình và thông báo trạng thái
-        progress_frame = ttk.Frame(self.root, padding=(10, 2))
+        progress_frame = ttk.Frame(self.root, padding=(12, 2))
         progress_frame.pack(fill=tk.X)
 
         self.progress_var = tk.DoubleVar(value=0)
         self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, maximum=100)
         self.progress_bar.pack(fill=tk.X, side=tk.TOP, pady=2)
 
-        self.status_label = ttk.Label(progress_frame, text="Sẵn sàng quét.", font=("Arial", 9, "italic"))
+        self.status_label = ttk.Label(progress_frame, text="Sẵn sàng quét.", font=("Segoe UI", 9, "italic"))
         self.status_label.pack(side=tk.LEFT)
 
         # 4. Khu vực nội dung dạng Tabs (Notebook)
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(4, 4))
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=(4, 6))
 
         # --- Tab 1: Bảng kết quả quét & Khuyến nghị ---
-        self.tab_results = ttk.Frame(self.notebook, padding=6)
-        self.notebook.add(self.tab_results, text="📋 Bảng Kết Quả Quét")
+        self.tab_results = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(self.tab_results, text="📋  Bảng Kết Quả Quét")
         self._build_tab_results()
 
         # --- Tab 2: Đánh giá thế trận an ninh (Security Assessment) ---
-        self.tab_security = ttk.Frame(self.notebook, padding=8)
-        self.notebook.add(self.tab_security, text="🛡️ Báo Cáo An Ninh Mạng")
+        self.tab_security = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.tab_security, text="🛡️  Báo Cáo An Ninh Mạng")
         self._build_tab_security()
 
         # --- Tab 3: Nhật ký hoạt động (Activity Log) ---
-        self.tab_logs = ttk.Frame(self.notebook, padding=8)
-        self.notebook.add(self.tab_logs, text="📜 Nhật Ký Hoạt Động")
+        self.tab_logs = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.tab_logs, text="📜  Nhật Ký Hoạt Động")
         self._build_tab_logs()
 
         # 5. Thanh trạng thái dưới đáy cửa sổ (Status Bar)
-        self.status_bar = ttk.Frame(self.root, relief=tk.SUNKEN, padding=(8, 3))
+        self.status_bar = ttk.Frame(self.root, relief=tk.SUNKEN, padding=(10, 4))
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
-        self.lbl_sb_target = ttk.Label(self.status_bar, text="Mục tiêu: Chưa chọn", font=("Arial", 8))
+        self.lbl_sb_target = ttk.Label(self.status_bar, text="Mục tiêu: Chưa chọn", font=("Segoe UI", 8))
         self.lbl_sb_target.pack(side=tk.LEFT, padx=10)
 
-        self.lbl_sb_speed = ttk.Label(self.status_bar, text="Tốc độ: 0.0 cổng/s", font=("Arial", 8))
+        self.lbl_sb_speed = ttk.Label(self.status_bar, text="Tốc độ: 0.0 cổng/s", font=("Segoe UI", 8))
         self.lbl_sb_speed.pack(side=tk.LEFT, padx=10)
 
-        self.lbl_sb_time = ttk.Label(self.status_bar, text="Thời gian: 0.0s", font=("Arial", 8))
+        self.lbl_sb_time = ttk.Label(self.status_bar, text="Thời gian: 0.0s", font=("Segoe UI", 8))
         self.lbl_sb_time.pack(side=tk.LEFT, padx=10)
 
-        self.lbl_sb_threads = ttk.Label(self.status_bar, text=f"Luồng: {DEFAULT_MAX_THREADS}", font=("Arial", 8))
+        self.lbl_sb_threads = ttk.Label(self.status_bar, text=f"Luồng: {DEFAULT_MAX_THREADS}", font=("Segoe UI", 8))
         self.lbl_sb_threads.pack(side=tk.RIGHT, padx=10)
 
     def _build_tab_results(self):
         """Xây dựng nội dung Tab 1: Bảng kết quả quét."""
         # Thanh công cụ lọc trạng thái và rủi ro
         toolbar = ttk.Frame(self.tab_results)
-        toolbar.pack(fill=tk.X, pady=(0, 4))
+        toolbar.pack(fill=tk.X, pady=(0, 6))
 
         ttk.Label(toolbar, text="Trạng thái:").pack(side=tk.LEFT, padx=(0, 4))
         self.status_filter_var = tk.StringVar(value="Tất cả trạng thái")
@@ -266,16 +357,16 @@ class PortScannerApp:
         self.combo_risk_filter.bind("<<ComboboxSelected>>", self._on_filter_changed)
 
         # Huy hiệu thống kê trạng thái
-        self.lbl_stat_open = ttk.Label(toolbar, text="🟢 Mở: 0 (0%)", foreground="#007700", font=("Arial", 9, "bold"))
+        self.lbl_stat_open = ttk.Label(toolbar, text="🟢 Mở: 0 (0%)", foreground="#15803D", font=("Segoe UI", 9, "bold"))
         self.lbl_stat_open.pack(side=tk.LEFT, padx=6)
 
-        self.lbl_stat_closed = ttk.Label(toolbar, text="⚪ Đóng: 0 (0%)", foreground="#555555", font=("Arial", 9, "bold"))
+        self.lbl_stat_closed = ttk.Label(toolbar, text="⚪ Đóng: 0 (0%)", foreground="#64748B", font=("Segoe UI", 9, "bold"))
         self.lbl_stat_closed.pack(side=tk.LEFT, padx=6)
 
-        self.lbl_stat_filtered = ttk.Label(toolbar, text="🟠 Bị lọc: 0 (0%)", foreground="#b37400", font=("Arial", 9, "bold"))
+        self.lbl_stat_filtered = ttk.Label(toolbar, text="🟠 Bị lọc: 0 (0%)", foreground="#B45309", font=("Segoe UI", 9, "bold"))
         self.lbl_stat_filtered.pack(side=tk.LEFT, padx=6)
 
-        self.lbl_firewall_hint = ttk.Label(toolbar, text="", foreground="#b35900", font=("Arial", 8, "italic"))
+        self.lbl_firewall_hint = ttk.Label(toolbar, text="", foreground="#B45309", font=("Segoe UI", 9, "italic"))
         self.lbl_firewall_hint.pack(side=tk.RIGHT, padx=5)
 
         # Bảng Treeview
@@ -285,23 +376,24 @@ class PortScannerApp:
         columns = ("ip", "port", "status", "rtt", "service", "risk", "notes", "recommendation")
         self.tree = ttk.Treeview(tree_container, columns=columns, show="headings", selectmode="browse")
 
-        self.tree.heading("ip", text="Mục tiêu (IP)")
-        self.tree.heading("port", text="Cổng")
-        self.tree.heading("status", text="Trạng thái")
-        self.tree.heading("rtt", text="Độ trễ")
-        self.tree.heading("service", text="Dịch vụ dự đoán")
-        self.tree.heading("risk", text="Mức rủi ro")
-        self.tree.heading("notes", text="Ghi chú phản hồi socket")
-        self.tree.heading("recommendation", text="Khuyến nghị an toàn")
+        col_configs = [
+            ("ip", "Mục tiêu (IP)", 115, tk.CENTER),
+            ("port", "Cổng", 70, tk.CENTER),
+            ("status", "Trạng thái", 100, tk.CENTER),
+            ("rtt", "Độ trễ", 80, tk.CENTER),
+            ("service", "Dịch vụ dự đoán", 120, tk.CENTER),
+            ("risk", "Mức rủi ro", 90, tk.CENTER),
+            ("notes", "Ghi chú phản hồi socket", 230, tk.W),
+            ("recommendation", "Khuyến nghị an toàn", 270, tk.W),
+        ]
 
-        self.tree.column("ip", width=110, anchor=tk.CENTER)
-        self.tree.column("port", width=65, anchor=tk.CENTER)
-        self.tree.column("status", width=95, anchor=tk.CENTER)
-        self.tree.column("rtt", width=75, anchor=tk.CENTER)
-        self.tree.column("service", width=110, anchor=tk.CENTER)
-        self.tree.column("risk", width=85, anchor=tk.CENTER)
-        self.tree.column("notes", width=220)
-        self.tree.column("recommendation", width=260)
+        for col_id, col_name, width, anchor in col_configs:
+            self.tree.heading(
+                col_id,
+                text=f"{col_name} ↕",
+                command=lambda c=col_id: self._sort_treeview_column(c, False)
+            )
+            self.tree.column(col_id, width=width, anchor=anchor)
 
         y_scroll = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.tree.yview)
         x_scroll = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.tree.xview)
@@ -315,36 +407,68 @@ class PortScannerApp:
         tree_container.columnconfigure(0, weight=1)
 
         # Cấu hình màu cho trạng thái & rủi ro
-        self.tree.tag_configure(STATUS_OPEN, foreground="#007700")
-        self.tree.tag_configure(STATUS_CLOSED, foreground="#666666")
-        self.tree.tag_configure(STATUS_FILTERED, foreground="#b37400")
-        self.tree.tag_configure("Risk_Critical", foreground="#cc0000", font=("Arial", 9, "bold"))
-        self.tree.tag_configure("Risk_High", foreground="#b30000")
-        self.tree.tag_configure("Risk_Medium", foreground="#b35900")
-        self.tree.tag_configure("Risk_Low", foreground="#008000")
+        self.tree.tag_configure(STATUS_OPEN, foreground="#15803D")
+        self.tree.tag_configure(STATUS_CLOSED, foreground="#64748B")
+        self.tree.tag_configure(STATUS_FILTERED, foreground="#B45309")
+        self.tree.tag_configure("Risk_Critical", foreground="#B91C1C", font=("Segoe UI", 9, "bold"))
+        self.tree.tag_configure("Risk_High", foreground="#DC2626")
+        self.tree.tag_configure("Risk_Medium", foreground="#D97706")
+        self.tree.tag_configure("Risk_Low", foreground="#16A34A")
 
         # Khung thông tin chi tiết cổng & khuyến nghị an toàn
         detail_frame = ttk.LabelFrame(self.tab_results, text="Chi tiết dịch vụ & Khuyến nghị an toàn (Mốc 08/11)", padding=6)
-        detail_frame.pack(fill=tk.X, pady=(4, 0))
+        detail_frame.pack(fill=tk.X, pady=(6, 0))
 
-        self.txt_recommendation = tk.Text(detail_frame, height=3, wrap=tk.WORD, font=("Arial", 9), relief=tk.SOLID, borderwidth=1)
+        self.txt_recommendation = tk.Text(
+            detail_frame, height=4, wrap=tk.WORD, font=("Segoe UI", 9),
+            relief=tk.FLAT, borderwidth=0, bg="#FFFFFF", fg="#1F2937", padx=10, pady=8
+        )
         self.txt_recommendation.pack(fill=tk.X)
         self.txt_recommendation.insert(tk.END, "Chọn một dòng trong bảng kết quả để xem chi tiết nhận diện dịch vụ, rủi ro và khuyến nghị an toàn.")
         self.txt_recommendation.config(state=tk.DISABLED)
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
+    def _sort_treeview_column(self, col: str, reverse: bool):
+        """Sắp xếp các dòng trong bảng Treeview khi người dùng nhấp vào tiêu đề cột."""
+        items = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
+
+        def parse_sort_val(item):
+            val = item[0]
+            if col == "port":
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    return 0
+            elif col == "rtt":
+                try:
+                    clean = str(val).replace("ms", "").strip()
+                    return float(clean) if clean and clean != "-" else -1.0
+                except (ValueError, TypeError):
+                    return -1.0
+            elif col == "risk":
+                risk_order = {"Critical": 5, "High": 4, "Medium": 3, "Low": 2, "Info": 1, "None": 0}
+                return risk_order.get(str(val), -1)
+            return str(val).lower()
+
+        items.sort(key=parse_sort_val, reverse=reverse)
+
+        for index, (_, k) in enumerate(items):
+            self.tree.move(k, "", index)
+
+        # Cập nhật heading để nhấp lần sau đổi chiều sắp xếp
+        self.tree.heading(col, command=lambda: self._sort_treeview_column(col, not reverse))
+
     def _build_tab_security(self):
         """Xây dựng nội dung Tab 2: Báo cáo an ninh mạng tổng thể."""
-        # Tiêu đề đánh giá thế trận an ninh
         sec_header_frame = ttk.Frame(self.tab_security)
         sec_header_frame.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Label(sec_header_frame, text="Đánh giá thế trận an ninh: ", font=("Arial", 11, "bold")).pack(side=tk.LEFT)
-        self.lbl_posture_rating = ttk.Label(sec_header_frame, text="CHƯA CÓ DỮ LIỆU", font=("Arial", 11, "bold"), foreground="#666666")
+        ttk.Label(sec_header_frame, text="Đánh giá thế trận an ninh: ", font=("Segoe UI", 11, "bold")).pack(side=tk.LEFT)
+        self.lbl_posture_rating = ttk.Label(sec_header_frame, text="CHƯA CÓ DỮ LIỆU", font=("Segoe UI", 11, "bold"), foreground="#64748B")
         self.lbl_posture_rating.pack(side=tk.LEFT, padx=5)
 
-        self.lbl_posture_summary = ttk.Label(self.tab_security, text="Chưa thực hiện quét cổng nào.", font=("Arial", 9, "italic"))
+        self.lbl_posture_summary = ttk.Label(self.tab_security, text="Chưa thực hiện quét cổng nào.", font=("Segoe UI", 9, "italic"))
         self.lbl_posture_summary.pack(anchor=tk.W, pady=(0, 8))
 
         # Khung phân bổ mức độ rủi ro
@@ -354,7 +478,7 @@ class PortScannerApp:
         self.lbl_risk_counts = ttk.Label(
             dist_frame,
             text="🔴 Nghiêm trọng (Critical): 0  |  🟠 Cao (High): 0  |  🟡 Trung bình (Medium): 0  |  🟢 Thấp (Low): 0",
-            font=("Arial", 9)
+            font=("Segoe UI", 9)
         )
         self.lbl_risk_counts.pack(anchor=tk.W)
 
@@ -362,17 +486,20 @@ class PortScannerApp:
         warn_frame = ttk.LabelFrame(self.tab_security, text="Cảnh báo an ninh dịch vụ nhạy cảm", padding=8)
         warn_frame.pack(fill=tk.X, pady=4)
 
-        self.lbl_warn_cleartext = ttk.Label(warn_frame, text="• Dịch vụ không mã hóa (Cleartext): Không phát hiện", foreground="#333333")
+        self.lbl_warn_cleartext = ttk.Label(warn_frame, text="• Dịch vụ không mã hóa (Cleartext): Không phát hiện", foreground="#334155")
         self.lbl_warn_cleartext.pack(anchor=tk.W, pady=2)
 
-        self.lbl_warn_database = ttk.Label(warn_frame, text="• Cơ sở dữ liệu mở cổng mạng (Databases): Không phát hiện", foreground="#333333")
+        self.lbl_warn_database = ttk.Label(warn_frame, text="• Cơ sở dữ liệu mở cổng mạng (Databases): Không phát hiện", foreground="#334155")
         self.lbl_warn_database.pack(anchor=tk.W, pady=2)
 
         # Khung các hành động ưu tiên khắc phục
         rec_frame = ttk.LabelFrame(self.tab_security, text="Khuyến nghị an ninh ưu tiên khắc phục", padding=8)
         rec_frame.pack(fill=tk.BOTH, expand=True, pady=4)
 
-        self.txt_security_recs = tk.Text(rec_frame, wrap=tk.WORD, font=("Arial", 9), relief=tk.SOLID, borderwidth=1)
+        self.txt_security_recs = tk.Text(
+            rec_frame, wrap=tk.WORD, font=("Segoe UI", 9),
+            relief=tk.FLAT, borderwidth=0, bg="#FFFFFF", fg="#1F2937", padx=10, pady=8
+        )
         self.txt_security_recs.pack(fill=tk.BOTH, expand=True)
         self.txt_security_recs.insert(tk.END, "Thực hiện quét để sinh báo cáo an ninh mạng và khuyến nghị chi tiết.")
         self.txt_security_recs.config(state=tk.DISABLED)
@@ -386,7 +513,10 @@ class PortScannerApp:
         self.chk_autoscroll = tk.BooleanVar(value=True)
         ttk.Checkbutton(log_toolbar, text="Tự động cuộn", variable=self.chk_autoscroll).pack(side=tk.RIGHT)
 
-        self.txt_logs = tk.Text(self.tab_logs, wrap=tk.WORD, font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4", insertbackground="white")
+        self.txt_logs = tk.Text(
+            self.tab_logs, wrap=tk.WORD, font=("Consolas", 9),
+            bg="#F8FAFD", fg="#334155", insertbackground="#2563EB", relief=tk.FLAT, padx=8, pady=8
+        )
         log_scroll = ttk.Scrollbar(self.tab_logs, orient=tk.VERTICAL, command=self.txt_logs.yview)
         self.txt_logs.configure(yscrollcommand=log_scroll.set)
 
@@ -441,10 +571,10 @@ class PortScannerApp:
         res = validate_target(target_input)
         if res.is_valid:
             if res.is_lan_or_local:
-                color = "#008000"
+                color = "#15803D"
                 icon = "✅"
             else:
-                color = "#cc6600"
+                color = "#B45309"
                 icon = "⚠️"
             display_text = f"{icon} {res.resolved_ip} ({res.ip_type})"
             self.lbl_ip_feedback.config(text=display_text, foreground=color)
@@ -461,7 +591,7 @@ class PortScannerApp:
                 messagebox.showinfo("Xác thực IP thành công", detail_msg)
             return True, res
         else:
-            self.lbl_ip_feedback.config(text=f"❌ {res.error_message}", foreground="#cc0000")
+            self.lbl_ip_feedback.config(text=f"❌ {res.error_message}", foreground="#B91C1C")
             if not silent:
                 messagebox.showerror("Lỗi địa chỉ IP", res.error_message)
             return False, None
@@ -545,6 +675,9 @@ class PortScannerApp:
 
     def _update_row_and_progress(self, result: ScanResult, completed: int, total: int):
         """Cập nhật tiến trình và thêm dòng mới vào bảng kết quả."""
+        if self.scanner and self.scanner._stop_event.is_set():
+            return
+
         percent = (completed / total) * 100
         self.progress_var.set(percent)
 
@@ -655,6 +788,30 @@ class PortScannerApp:
 
     def _update_stats_display(self):
         """Cập nhật các số liệu thống kê trạng thái và báo cáo an ninh."""
+        if not self.scan_results:
+            self.lbl_stat_open.config(text="🟢 Mở: 0 (0%)")
+            self.lbl_stat_closed.config(text="⚪ Đóng: 0 (0%)")
+            self.lbl_stat_filtered.config(text="🟠 Bị lọc: 0 (0%)")
+            self.lbl_firewall_hint.config(text="")
+            self.lbl_posture_rating.config(text="CHƯA CÓ DỮ LIỆU", foreground="#64748B")
+            self.lbl_posture_summary.config(text="Chưa thực hiện quét cổng nào.")
+            self.lbl_risk_counts.config(
+                text="🔴 Nghiêm trọng (Critical): 0  |  🟠 Cao (High): 0  |  🟡 Trung bình (Medium): 0  |  🟢 Thấp (Low): 0"
+            )
+            self.lbl_warn_cleartext.config(
+                text="• Dịch vụ không mã hóa (Cleartext): Không phát hiện",
+                foreground="#334155"
+            )
+            self.lbl_warn_database.config(
+                text="• Cơ sở dữ liệu mở cổng mạng: Không phát hiện",
+                foreground="#334155"
+            )
+            self.txt_security_recs.config(state=tk.NORMAL)
+            self.txt_security_recs.delete("1.0", tk.END)
+            self.txt_security_recs.insert(tk.END, "Thực hiện quét để sinh báo cáo an ninh mạng và khuyến nghị chi tiết.")
+            self.txt_security_recs.config(state=tk.DISABLED)
+            return
+
         stats = get_classification_stats(self.scan_results)
         self.lbl_stat_open.config(text=f"🟢 Mở: {stats['open_count']} ({stats['open_percent']}%)")
         self.lbl_stat_closed.config(text=f"⚪ Đóng: {stats['closed_count']} ({stats['closed_percent']}%)")
@@ -679,23 +836,23 @@ class PortScannerApp:
         if sec_summary["cleartext_ports"]:
             self.lbl_warn_cleartext.config(
                 text=f"• Dịch vụ không mã hóa (Cleartext): {', '.join(sec_summary['cleartext_ports'])}",
-                foreground="#cc0000"
+                foreground="#B91C1C"
             )
         else:
             self.lbl_warn_cleartext.config(
                 text="• Dịch vụ không mã hóa (Cleartext): Không phát hiện",
-                foreground="#008000"
+                foreground="#15803D"
             )
 
         if sec_summary["database_ports"]:
             self.lbl_warn_database.config(
                 text=f"• Cơ sở dữ liệu mở cổng mạng: {', '.join(sec_summary['database_ports'])}",
-                foreground="#cc0000"
+                foreground="#B91C1C"
             )
         else:
             self.lbl_warn_database.config(
                 text="• Cơ sở dữ liệu mở cổng mạng: Không phát hiện",
-                foreground="#008000"
+                foreground="#15803D"
             )
 
         # Danh sách khuyến nghị chi tiết
@@ -714,6 +871,9 @@ class PortScannerApp:
 
     def _on_scan_finished(self):
         """Xử lý sự kiện khi toàn bộ tiến trình quét hoàn tất."""
+        if self.scanner and self.scanner._stop_event.is_set():
+            return
+
         self.is_scanning = False
         self.btn_scan.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
@@ -732,17 +892,23 @@ class PortScannerApp:
         self._log(f"Hoàn tất quét trong {total_time}s. Tìm thấy {stats['open_count']} cổng mở.")
 
     def stop_scan(self):
-        """Dừng tiến trình quét đang chạy."""
-        if self.scanner and self.is_scanning:
+        """Dừng tiến trình quét đang chạy ngay lập tức."""
+        if self.scanner:
             self.scanner.stop()
-            self.status_label.config(text="Đang dừng tiến trình quét...")
-            self._log("Người dùng yêu cầu dừng quét.", level="WARN")
+        self.is_scanning = False
+        self.btn_scan.config(state=tk.NORMAL)
+        self.btn_stop.config(state=tk.DISABLED)
+        if self.scan_results:
+            self.btn_export.config(state=tk.NORMAL)
+        self.root.config(cursor="")
+        self.status_label.config(text=f"Đã dừng quét! Đã ghi nhận {len(self.scan_results)} cổng.")
+        self._log(f"Người dùng yêu cầu dừng quét (ghi nhận {len(self.scan_results)} cổng).", level="WARN")
+        self._update_stats_display()
 
     def clear_results(self):
         """Xóa toàn bộ dữ liệu trên bảng và reset trạng thái."""
         if self.is_scanning:
-            messagebox.showwarning("Cảnh báo", "Vui lòng dừng quét trước khi xóa dữ liệu.")
-            return
+            self.stop_scan()
 
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -752,6 +918,10 @@ class PortScannerApp:
         self.progress_var.set(0)
         self.status_label.config(text="Đã xóa kết quả. Sẵn sàng quét mới.")
         self.btn_export.config(state=tk.DISABLED)
+        self.txt_recommendation.config(state=tk.NORMAL)
+        self.txt_recommendation.delete("1.0", tk.END)
+        self.txt_recommendation.insert(tk.END, "Chọn một dòng trong bảng kết quả để xem chi tiết nhận diện dịch vụ, rủi ro và khuyến nghị an toàn.")
+        self.txt_recommendation.config(state=tk.DISABLED)
         self._log("Đã xóa dữ liệu bảng kết quả.")
 
     def export_report(self):
@@ -771,7 +941,6 @@ class PortScannerApp:
         )
         if file_path:
             try:
-                # Lấy thông tin metadata từ scanner hiện tại
                 duration = None
                 threads = None
                 if self.scanner:
@@ -804,7 +973,7 @@ class PortScannerApp:
         about_msg = (
             "ỨNG DỤNG QUÉT VÀ PHÂN TÍCH CỔNG MẠNG LAN\n"
             "Hỗ Trợ Đánh Giá An Toàn Hệ Thống Mạng Bằng Python\n"
-            "Phiên bản: 1.0.0 (Giao diện Tkinter hoàn chỉnh)\n\n"
+            "Phiên bản: 1.0.0 (Giao diện Tkinter Dashboard hoàn chỉnh)\n\n"
             "Đặc điểm chính:\n"
             "• Quét cổng TCP Connect Scan đa luồng bằng Socket\n"
             "• Phân loại trạng thái OPEN, CLOSED, FILTERED/UNKNOWN\n"

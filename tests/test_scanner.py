@@ -50,6 +50,19 @@ class TestSocketScanner(unittest.TestCase):
         mock_sock.close.assert_called_once()
 
     @patch("socket.socket")
+    def test_scan_single_port_closed_connection_refused_exception(self, mock_socket_cls):
+        """Kiểm thử cổng đóng (CLOSED) khi socket quăng ngoại lệ ConnectionRefusedError (10061)."""
+        mock_sock = MagicMock()
+        mock_sock.connect_ex.side_effect = ConnectionRefusedError(10061, "Connection refused")
+        mock_socket_cls.return_value = mock_sock
+
+        result = scan_single_port("192.168.1.1", 80, timeout=0.5)
+
+        self.assertEqual(result.status, STATUS_CLOSED)
+        self.assertEqual(result.error_code, 10061)
+        self.assertIn("từ chối kết nối", result.notes)
+
+    @patch("socket.socket")
     def test_scan_single_port_closed_posix(self, mock_socket_cls):
         """Kiểm thử cổng đóng (CLOSED) trên Linux/POSIX khi connect_ex trả về ECONNREFUSED."""
         mock_sock = MagicMock()

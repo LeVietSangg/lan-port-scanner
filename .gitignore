@@ -48,6 +48,8 @@ htmlcov/
 
 # Output data & reports (keep folder structure via .gitkeep)
 reports/*.csv
+reports/*.txt
+!reports/.gitkeep
 !reports/.gitkeep
 
 # Project documentation

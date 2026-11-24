@@ -128,14 +128,36 @@ def scan_single_port(
         error_code = sock.connect_ex((target_ip, port))
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
+    except ConnectionRefusedError:
+        end_time = time.perf_counter()
+        response_time_ms = round((end_time - start_time) * 1000, 2)
+        error_code = 10061
     except socket.timeout:
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
         error_code = getattr(errno, "ETIMEDOUT", 10060)
+    except OSError as e:
+        end_time = time.perf_counter()
+        response_time_ms = round((end_time - start_time) * 1000, 2)
+        err = getattr(e, "winerror", None) or getattr(e, "errno", None)
+        if err in (10061, errno.ECONNREFUSED, 111, 61) or "10061" in str(e) or "refused" in str(e).lower():
+            error_code = 10061
+        elif err in (10060, getattr(errno, "ETIMEDOUT", 10060)) or "10060" in str(e) or "timeout" in str(e).lower():
+            error_code = 10060
+        elif err in (10013, getattr(errno, "EACCES", 13)) or "10013" in str(e) or "access" in str(e).lower():
+            error_code = 10013
+        else:
+            error_code = err
+            exception_caught = str(e)
     except Exception as e:
         end_time = time.perf_counter()
         response_time_ms = round((end_time - start_time) * 1000, 2)
-        exception_caught = str(e)
+        err = getattr(e, "winerror", None) or getattr(e, "errno", None)
+        if err in (10061, errno.ECONNREFUSED, 111, 61) or "10061" in str(e) or "refused" in str(e).lower():
+            error_code = 10061
+        else:
+            error_code = err
+            exception_caught = str(e)
     finally:
         try:
             sock.close()
@@ -151,7 +173,7 @@ def scan_single_port(
     status = classification.status
     notes = classification.reason
 
-    if exception_caught:
+    if exception_caught and status not in (STATUS_OPEN, STATUS_CLOSED):
         notes = f"Lỗi ngoại lệ socket: {exception_caught}"
         classification.reason = notes
 
@@ -178,7 +200,8 @@ def scan_ports_sequential(
     ports: List[int],
     timeout: float = DEFAULT_TIMEOUT,
     progress_callback: Optional[Callable[[ScanResult, int, int], None]] = None,
-    enable_banner: bool = False
+    enable_banner: bool = False,
+    stop_event: Optional[threading.Event] = None
 ) -> List[ScanResult]:
     """Quét tuần tự từng cổng bằng Socket đơn luồng (Chức năng nền tảng ngày 05/11).
 
@@ -188,6 +211,7 @@ def scan_ports_sequential(
         timeout: Thời gian chờ phản hồi cho từng cổng.
         progress_callback: Hàm callback nhận (ScanResult, số cổng hoàn thành, tổng số).
         enable_banner: Bật/tắt thu thập banner.
+        stop_event: Cờ báo dừng quét khẩn cấp.
 
     Returns:
         List[ScanResult]: Danh sách kết quả quét đã sắp xếp theo thứ tự cổng.
@@ -196,6 +220,8 @@ def scan_ports_sequential(
     total = len(ports)
 
     for idx, port in enumerate(ports, start=1):
+        if stop_event and stop_event.is_set():
+            break
         res = scan_single_port(target_ip, port, timeout=timeout, enable_banner=enable_banner)
         results.append(res)
         if progress_callback:
@@ -300,6 +326,7 @@ class PortScanner:
         self.results: List[ScanResult] = []
         self.scan_duration_sec: float = 0.0
         self.scan_rate: float = 0.0
+        self.executor: Optional[ThreadPoolExecutor] = None
 
     def scan(self, progress_callback: Optional[Callable[[ScanResult, int, int], None]] = None) -> List[ScanResult]:
         """Bắt đầu quét danh sách cổng bằng đa luồng ThreadPoolExecutor.
@@ -325,7 +352,8 @@ class PortScanner:
                 self.ports,
                 timeout=self.timeout,
                 progress_callback=progress_callback,
-                enable_banner=self.enable_banner
+                enable_banner=self.enable_banner,
+                stop_event=self._stop_event
             )
             t_end = time.perf_counter()
             self.scan_duration_sec = round(t_end - t_start, 3)
@@ -334,15 +362,16 @@ class PortScanner:
             return self.results
 
         worker_count = min(self.max_threads, max(1, total))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+
+        def _worker_task(port: int) -> Optional[ScanResult]:
+            if self._stop_event.is_set():
+                return None
+            return scan_single_port(self.target, port, self.timeout, self.enable_banner)
+
+        self.executor = ThreadPoolExecutor(max_workers=worker_count)
+        try:
             future_to_port = {
-                executor.submit(
-                    scan_single_port,
-                    self.target,
-                    port,
-                    self.timeout,
-                    self.enable_banner
-                ): port
+                self.executor.submit(_worker_task, port): port
                 for port in self.ports
             }
 
@@ -351,6 +380,8 @@ class PortScanner:
                     break
                 try:
                     result = future.result()
+                    if result is None:
+                        continue
                     with self._lock:
                         self.results.append(result)
                         completed += 1
@@ -373,6 +404,13 @@ class PortScanner:
 
                     if progress_callback:
                         progress_callback(err_result, current_comp, total)
+        finally:
+            # Ngắt ngay lập tức các tác vụ chưa chạy trong hàng đợi
+            try:
+                self.executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.executor.shutdown(wait=False)
+            self.executor = None
 
         t_end = time.perf_counter()
         self.scan_duration_sec = round(t_end - t_start, 3)
@@ -384,9 +422,14 @@ class PortScanner:
         return self.results
 
     def stop(self):
-        """Dừng tiến trình quét ngay lập tức bằng threading.Event."""
+        """Dừng tiến trình quét ngay lập tức bằng threading.Event và hủy hàng đợi."""
         self.is_running = False
         self._stop_event.set()
+        if self.executor:
+            try:
+                self.executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.executor.shutdown(wait=False)
 
 
 def benchmark_scan(

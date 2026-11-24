@@ -30,17 +30,36 @@ lan-port-scanner/
 │       ├── __init__.py
 │       └── app.py              # Ứng dụng Tkinter GUI
 │
-├── tests/                      # Bộ kiểm thử tự động (Unit Tests)
-│   ├── __init__.py
+├── scripts/                    # Kịch bản mô phỏng kiểm thử & sinh dữ liệu
+│   └── run_lab_simulation.py   # Chạy mô phỏng kịch bản Lab và xuất báo cáo mẫu
+│
+├── tests/                      # Bộ kiểm thử tự động (Unit Tests - 97 tests)
 │   ├── test_validator.py       # Kiểm thử xác thực IP và dải cổng
 │   ├── test_scanner.py         # Kiểm thử quét socket và phân loại trạng thái
+│   ├── test_classifier.py      # Kiểm thử phân loại OPEN/CLOSED/FILTERED
+│   ├── test_threading_scanner.py # Kiểm thử quét đa luồng & đo hiệu năng
 │   ├── test_analyzer.py        # Kiểm thử nhận diện dịch vụ và khuyến nghị an toàn
-│   └── test_exporter.py        # Kiểm thử định dạng và xuất file CSV
+│   ├── test_gui.py             # Kiểm thử giao diện Tkinter GUI
+│   ├── test_exporter.py        # Kiểm thử định dạng và xuất file CSV/TXT
+│   └── test_lab_scenarios.py   # Kiểm thử kịch bản thực nghiệm Lab & Localhost
 │
-├── reports/                    # Thư mục lưu trữ các báo cáo quét (.csv)
-│   └── .gitkeep
-└── docs/                       # Tài liệu thiết kế hệ thống và báo cáo chuyên đề
-    └── kien_truc_he_thong.md
+├── reports/                    # Thư mục lưu trữ báo cáo quét (.csv, .txt)
+│   ├── mau_bao_cao_localhost.csv & .txt
+│   ├── mau_bao_cao_lab_server.csv & .txt
+│   └── mau_bao_cao_filtered_firewall.csv & .txt
+│
+└── docs/                       # Tài liệu thiết kế hệ thống và báo cáo chuyên đề Word
+    ├── kien_truc_he_thong.md
+    ├── huong_dan_kiem_tra_ip.md
+    ├── nguyen_ly_quet_tcp_socket.md
+    ├── phan_loai_trang_thai_cong_mang.md
+    ├── ky_thuat_quet_dong_thoi_threading.md
+    ├── nhan_dien_dich_vu_va_canh_bao_an_toan.md
+    ├── thiet_ke_giao_dien_tkinter.md
+    ├── hien_thi_ket_qua_va_xuat_csv.md
+    ├── kiem_tra_chuc_nang_va_sua_loi.md
+    ├── kiem_thu_localhost_va_lab.md
+    └── huong_dan_chup_anh_va_thu_thap_minh_chung.md
 ```
 
 ---
@@ -132,6 +151,9 @@ python -m unittest discover tests
 | **08/11** | **Nhận diện dịch vụ theo số hiệu cổng, cảnh báo cơ bản.** | ✅ **Hoàn thành** |
 | **09/11** | **Làm giao diện Tkinter.** | ✅ **Hoàn thành** |
 | **10/11** | **Hiển thị kết quả và xuất CSV.** | ✅ **Hoàn thành** |
+| **11/11** | **Kiểm tra toàn bộ chức năng, sửa lỗi.** | ✅ **Hoàn thành** |
+| **12/11** | **Kiểm thử trên localhost và máy ảo/mạng lab.** | ✅ **Hoàn thành** |
+| **13/11** | **Chụp ảnh giao diện, kết quả quét, kết quả CSV.** | ✅ **Hoàn thành** |
 
 ---
 

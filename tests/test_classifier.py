@@ -72,6 +72,14 @@ class TestPortClassifier(unittest.TestCase):
         self.assertEqual(cls.packet_type, "Local Security Block")
         self.assertTrue(cls.firewall_suspected)
 
+    def test_classify_status_filtered_would_block(self):
+        """Mã lỗi 10035 (WSAEWOULDBLOCK) phản ánh kết nối non-blocking chưa hoàn tất."""
+        cls = classify_status(10035)
+        self.assertEqual(cls.status, STATUS_FILTERED)
+        self.assertEqual(cls.packet_type, "Operation Would Block")
+        self.assertTrue(cls.firewall_suspected)
+        self.assertIn("10035", cls.reason)
+
     def test_classify_status_unknown_error(self):
         """Các mã lỗi không xác định khác vẫn phải trả về FILTERED an toàn."""
         cls = classify_status(99999)

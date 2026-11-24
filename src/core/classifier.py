@@ -61,7 +61,9 @@ def classify_status(
        -> FILTERED/UNKNOWN (ICMP Net Unreachable - không tìm thấy mạng).
     6. error_code in (10013, EACCES):
        -> FILTERED/UNKNOWN (Bị chặn bởi quyền bảo mật / tường lửa cục bộ).
-    7. Các mã lỗi khác:
+    7. error_code in (10035, EINPROGRESS, EWOULDBLOCK):
+       -> FILTERED/UNKNOWN (Socket non-blocking chưa kịp hoàn tất bắt tay TCP).
+    8. Các mã lỗi khác:
        -> FILTERED/UNKNOWN (Lỗi kết nối socket hệ thống).
 
     Args:
@@ -72,6 +74,13 @@ def classify_status(
     Returns:
         PortClassification: Kết quả phân loại chi tiết.
     """
+    # Chuyển đổi mã lỗi sang số nguyên an toàn nếu nhận chuỗi
+    if error_code is not None:
+        try:
+            error_code = int(error_code)
+        except (ValueError, TypeError):
+            pass
+
     # 1. Trạng thái OPEN
     if error_code == 0:
         return PortClassification(
@@ -83,8 +92,9 @@ def classify_status(
             description="Cổng đang mở và có dịch vụ ứng dụng sẵn sàng nhận kết nối."
         )
 
-    # 2. Trạng thái CLOSED
-    if error_code in (errno.ECONNREFUSED, 10061):
+    # 2. Trạng thái CLOSED (TCP RST từ máy đích)
+    # Hỗ trợ: 10061 (Windows WSAECONNREFUSED), 111 (Linux), 61 (macOS / iOS)
+    if error_code in (errno.ECONNREFUSED, 10061, 111, 61):
         return PortClassification(
             status=STATUS_CLOSED,
             reason="Máy đích chủ động từ chối kết nối bằng gói tin TCP RST.",
@@ -138,7 +148,18 @@ def classify_status(
             description="Tường lửa cục bộ (Windows Defender / Antivirus) ngăn chặn kết nối socket."
         )
 
-    # 7. Các mã lỗi khác
+    # 7. Trạng thái FILTERED do Socket non-blocking chưa hoàn tất (WSAEWOULDBLOCK / EINPROGRESS)
+    if error_code in (getattr(errno, "EINPROGRESS", 115), getattr(errno, "EWOULDBLOCK", 11), 10035):
+        return PortClassification(
+            status=STATUS_FILTERED,
+            reason="Kết nối non-blocking chưa hoàn tất trong thời gian chờ (WSAEWOULDBLOCK 10035 / EINPROGRESS).",
+            packet_type="Operation Would Block",
+            confidence=0.8,
+            firewall_suspected=True,
+            description="Thao tác kết nối socket bất đồng bộ chưa nhận được phản hồi SYN-ACK hoặc RST từ máy đích."
+        )
+
+    # 8. Các mã lỗi khác
     return PortClassification(
         status=STATUS_FILTERED,
         reason=f"Lỗi kết nối socket hệ thống (Mã lỗi {error_code}).",
